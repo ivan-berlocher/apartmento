@@ -739,8 +739,10 @@
         vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
         gl_Position = projectionMatrix * mvPosition;
 
-        // Point size with perspective and variation
-        float size = 1.8 + 1.2 * (0.5 + 0.5 * sin(seed.x * 4.0 + t * 0.8));
+        // Point size with perspective and micro-variation (organique)
+        float jitter = fract(seed.y * 0.37);
+        float baseSize = 1.0 + 0.15 * (jitter - 0.5); // ±15% de variance
+        float size = (1.8 + 1.2 * (0.5 + 0.5 * sin(seed.x * 4.0 + t * 0.8))) * baseSize;
         size *= (280.0 / -mvPosition.z);
         gl_PointSize = clamp(size, 0.8, 6.0);
 
@@ -1465,8 +1467,25 @@
         }
       }
 
-      // Breathing
-      uniforms.uBreath.value = 0.5 + 0.5 * Math.sin(t * 0.6);
+      // Après la séquence d'entrée : une seule particule consciente, quasi immobile
+      if (!entryActive) {
+        const tl = t * 0.06; // temps étiré
+        const wave = 0.5 + 0.5 * Math.sin(tl * 0.23 + 1.7);
+        const radius = 1.7 + 0.3 * Math.sin(tl * 0.31 + 0.4);
+        const angle = tl * 0.11 + Math.sin(tl * 0.07);
+        const px = Math.cos(angle) * radius * 0.6;
+        const pz = Math.sin(angle * 1.13) * radius * 0.4 - 0.6;
+        const py = 0.45 + 0.18 * Math.sin(tl * 0.19 + 0.8);
+        presenceParticle.visible = true;
+        presenceMaterial.opacity = 0.03 * wave; // présence à peine au-dessus du champ
+        presenceParticle.position.set(px, py, pz);
+      }
+
+      // Respiration globale très lente (luminance / mouvement)
+      const breathVisual = 0.5 + 0.5 * Math.sin(t * 0.16);
+      uniforms.uBreath.value = breathVisual;
+      const breathLuma = 0.5 + 0.5 * Math.sin(t * 0.07);
+      ambient.intensity = 0.12 + 0.05 * breathLuma;
 
       // Mobile parallax
       if (orientEnabled){
