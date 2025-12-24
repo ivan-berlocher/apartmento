@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>apartmento / L'Espace Intérieur</title>
+  <meta name="description" content="Un espace de contemplation digitale — où la lumière habite l'architecture de la pensée." />
+  <style>
+    html, body { margin:0; padding:0; height:100%; background:#08090e; overflow:hidden; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+    #c { width:100vw; height:100vh; display:block; }
+    .hud {
+      position:fixed; inset:0; pointer-events:none;
+      display:flex; flex-direction:column; justify-content:space-between;
+      padding:20px 20px calc(20px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
+      color:rgba(255,255,255,0.88);
+    }
+    .top {
+      display:flex; justify-content:space-between; gap:12px; align-items:flex-start;
+      pointer-events:none;
+    }
+    .pillbar { display:flex; gap:8px; pointer-events:auto; flex-wrap: wrap; }
+    .pill {
+      pointer-events:auto;
+      border:1px solid rgba(255,255,255,0.15);
+      background:rgba(12,14,22,0.55);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius:999px;
+      padding:9px 12px;
+      font-size:12px;
+      letter-spacing:0.25px;
+      line-height:1;
+      cursor:pointer;
+      user-select:none;
+      display:flex; align-items:center; gap:8px;
+      transition: all 180ms ease;
+    }
+    .pill:hover { border-color: rgba(200,220,255,0.35); background:rgba(20,24,36,0.65); }
+    .pill.active { border-color: rgba(180,200,255,0.55); background:rgba(25,32,52,0.68); }
+    .pill kbd {
+      font-size:10px; opacity:0.65; border:1px solid rgba(255,255,255,0.15);
+      border-radius:6px; padding:2px 5px; background:rgba(255,255,255,0.05);
+    }
+    .brand {
+      pointer-events:none;
+      display:flex; flex-direction:column; gap:8px;
+      max-width:min(480px, 88vw);
+    }
+    .title { 
+      font-size:16px; 
+      letter-spacing:0.4px; 
+      opacity:0.94; 
+      font-weight:300;
+    }
+    .title span { opacity:0.5; font-weight:200; }
+    .subtitle { font-size:12px; opacity:0.58; line-height:1.45; font-weight:300; }
+    .bottom {
+      display:flex; justify-content:space-between; align-items:flex-end; gap:16px;
+    }
+    .note {
+      pointer-events:auto;
+      max-width:min(560px, 90vw);
+      border:1px solid rgba(255,255,255,0.12);
+      background:rgba(12,14,22,0.48);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-radius:20px;
+      padding:14px 16px;
+      font-size:12px;
+      line-height:1.5;
+      opacity:0.9;
+    }
+    .note-text {
+      font-weight:300;
+      letter-spacing:0.1px;
+    }
+    .hint {
+      opacity:0.5;
+      font-size:11px;
+      margin-top:10px;
+      font-weight:300;
+    }
+    .toast {
+      position:fixed; left:50%; bottom:28px; transform:translateX(-50%);
+      padding:9px 14px; border-radius:999px;
+      border:1px solid rgba(255,255,255,0.15);
+      background:rgba(12,14,22,0.78);
+      color:rgba(255,255,255,0.9);
+      font-size:12px;
+      opacity:0; pointer-events:none;
+      transition: opacity 200ms ease;
+    }
+    .toast.show { opacity:1; }
+    @media (max-width: 560px){
+      .brand { max-width: 180px; }
+      .subtitle { display:none; }
+      .note { border-radius:16px; padding:12px 14px; }
+      .pill { padding: 8px 10px; font-size: 11px; }
+      .pill kbd { display: none; }
+    }
+  
+    body.zen .hud { opacity: 0; transition: opacity 320ms ease; }
+    body.zen .hud:hover { opacity: 1; }
+    body.cursor-hide { cursor: none; }
+
+    /* Signature */
+    .signature {
+      position:fixed;
+      bottom:20px;
+      right:20px;
+      font-size:10px;
+      opacity:0.35;
+      letter-spacing:0.5px;
+      pointer-events:none;
+    }
+
+    /* Language toggle */
+    .lang-toggle {
+      display:flex; gap:6px; margin-bottom:10px; pointer-events:auto;
+    }
+    .lang-toggle button {
+      border:1px solid rgba(255,255,255,0.16);
+      background:rgba(255,255,255,0.05);
+      color:rgba(255,255,255,0.75);
+      padding:5px 10px;
+      border-radius:999px;
+      font-size:11px;
+      cursor:pointer;
+      transition: all 150ms ease;
+    }
+    .lang-toggle button:hover { background:rgba(255,255,255,0.1); }
+    .lang-toggle button.active { 
+      border-color: rgba(180,200,255,0.5); 
+      background:rgba(120,160,255,0.12); 
+      color:rgba(255,255,255,0.95);
+    }
+    [data-lang] { display:none; }
+    [data-lang].visible { display:inline; }
+
+    /* Entrée / Accueil */
+    .pillbar { opacity: 0; transition: opacity 1.2s ease; }
+    .pillbar.revealed { opacity: 1; }
+    .note { opacity: 0; transition: opacity 1.5s ease 0.3s; }
+    .note.revealed { opacity: 0.9; }
+    .brand { opacity: 0; transition: opacity 2s ease; }
+    .brand.revealed { opacity: 1; }
+
+    /* Nappe Bleue Source — Le lieu d'où tout apparaît */
+    .blue-source {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0;
+      transition: opacity 3s ease;
+      background: radial-gradient(
+        ellipse 120% 100% at 50% 60%,
+        rgba(47, 107, 255, 0.14) 0%,
+        rgba(47, 107, 255, 0.08) 35%,
+        rgba(30, 70, 180, 0.04) 60%,
+        transparent 85%
+      );
+    }
+    .blue-source.revealed {
+      opacity: 1;
+    }
+    .blue-source::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(
+        circle at 50% 40%,
+        rgba(53, 108, 255, 0.06) 0%,
+        transparent 50%
+      );
+      animation: breatheBlue 12s ease-in-out infinite;
+    }
+    @keyframes breatheBlue {
+      0%, 100% { opacity: 0.7; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.05); }
+    }
+
+    /* Canvas — apparition différée */
+    #c {
+      opacity: 0;
+      transition: opacity 2.5s ease;
+    }
+    #c.revealed {
+      opacity: 1;
+    }
+
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.161.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.161.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <!-- Nappe Bleue Source — Le lieu d'où tout apparaît -->
+  <div class="blue-source" id="blueSource"></div>
+  
+  <canvas id="c"></canvas>
+
+  <div class="hud" aria-hidden="true">
+    <div class="top">
+      <div class="brand">
+        <div class="title">apartmento <span data-lang="fr">/ L'Espace Intérieur</span><span data-lang="ko" class="visible">/ 내면의 공간</span></div>
+        <div class="subtitle">
+          <span data-lang="fr" class="visible">Un espace de contemplation digitale — où la lumière habite l'architecture de la pensée.</span>
+          <span data-lang="ko">빛이 사유의 건축을 거니는 디지털 명상 공간.</span>
+        </div>
+      </div>
+
+      <div class="pillbar">
+        <div id="btnSignature" class="pill" title="Entrée — Signature"><span>◎</span><kbd>0</kbd></div>
+        <div id="btnA" class="pill" title="Aube — First light"><span>Aube</span><kbd>1</kbd></div>
+        <div id="btnB" class="pill" title="Jour — Full presence"><span>Jour</span><kbd>2</kbd></div>
+        <div id="btnC" class="pill" title="Crépuscule — Golden hour"><span>Crépuscule</span><kbd>3</kbd></div>
+        <div id="btnD" class="pill" title="Nuit — Deep rest"><span>Nuit</span><kbd>4</kbd></div>
+        <div id="btnSound" class="pill" title="Son"><span id="soundIcon">🔇</span><kbd>S</kbd></div>
+        <div id="btnPosture" class="pill" title="Mur / Sol"><span id="postureIcon">▎</span><kbd>V</kbd></div>
+        <div id="btnFullscreen" class="pill" title="Plein écran"><span>⛶</span><kbd>F</kbd></div>
+        <div id="btnZen" class="pill" title="Mode Zen"><span>Zen</span><kbd>Z</kbd></div>
+        <div id="btnCapture" class="pill" title="Capturer"><span>◉</span><kbd>P</kbd></div>
+      </div>
+    </div>
+
+    <div class="bottom">
+      <div class="note">
+        <div class="lang-toggle">
+          <button id="langFR">FR</button>
+          <button id="langKO" class="active">한국어</button>
+        </div>
+        <div class="note-text" id="noteText">
+          <span data-lang="fr" id="textFR">L'appartement n'est pas un lieu. C'est un état.<br/>Ici, les murs respirent avec vous. La lumière ne vient pas d'ailleurs — elle émane de ce qui est présent.<br/>Entrez. Restez. Le temps suspend son vol.</span>
+          <span data-lang="ko" class="visible" id="textKO">아파트는 장소가 아닙니다. 상태입니다.<br/>여기서 벽은 당신과 함께 숨쉽니다. 빛은 다른 곳에서 오지 않습니다 — 존재하는 것에서 발산됩니다.<br/>들어오세요. 머무르세요. 시간이 날개를 접습니다.</span>
+        </div>
+        <div class="hint">
+          <span data-lang="fr">Glisser pour orbiter · Scroll pour zoomer · Double-clic pour reset · Touches: 1-4 (ambiances), F (plein écran), Z (zen), P (capture)</span>
+          <span data-lang="ko" class="visible">드래그하여 회전 · 스크롤로 줌 · 더블클릭으로 리셋 · 키: 1-4 (분위기), F (전체화면), Z (젠), P (캡처)</span>
+        </div>
+      </div>
+      <div></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast">Capturé</div>
+  <div class="signature">
+    LifeOS — apartmento ·
+    <a href="https://ivan-berlocher.github.io/apartmento/" target="_blank" rel="noopener noreferrer" style="color:inherit; text-decoration:none; border-bottom:1px dotted rgba(255,255,255,0.3); pointer-events:auto;">
+      ivan-berlocher.github.io/apartmento
+    </a>
+  </div>
+
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    // ---------- Utilities ----------
+    const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const smoothstep = (a, b, x) => {
+      const t = clamp((x - a) / (b - a), 0, 1);
+      return t * t * (3 - 2 * t);
+    };
+
+    // ---------- Canvas / Renderer ----------
+    const canvas = document.getElementById("c");
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight, false);
+    renderer.setClearColor(0x08090e, 1);
+
+    // Scene / Camera
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x08090e, 4.0, 22.0);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.05, 100);
+    // Position initiale : Multiplicité (vue haute, le monde des possibles)
+    camera.position.set(0.1, 4.5, 5.5);
+
+    const controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.rotateSpeed = 0.3;
+    controls.zoomSpeed = 0.6;
+    controls.minDistance = 3.0;
+    controls.maxDistance = 15.0;
+    controls.target.set(0, 0.5, 0);
+    controls.update();
+
+    // ---------- Mobile parallax ----------
+    let orientEnabled = false;
+    let orientX = 0, orientY = 0;
+
+    async function enableOrientation(){
+      if (orientEnabled) return;
+      const hasAPI = (typeof DeviceOrientationEvent !== "undefined");
+      if (!hasAPI) return;
+      try {
+        if (typeof DeviceOrientationEvent.requestPermission === "function"){
+          const res = await DeviceOrientationEvent.requestPermission();
+          if (res !== "granted") return;
+        }
+        window.addEventListener("deviceorientation", (e) => {
+          const g = (e.gamma || 0);
+          const b = (e.beta || 0);
+          orientX = clamp(g / 45, -1, 1);
+          orientY = clamp(b / 45, -1, 1);
+        }, { passive:true });
+        orientEnabled = true;
+        toast("Parallax activé");
+      } catch (err){}
+    }
+
+    window.addEventListener("touchend", () => { enableOrientation(); }, { once:true, passive:true });
+
+    // ---------- Mode configurations ----------
+    let mode = -1; // Démarre en mode Signature
+
+    const MODES = {
+      '-1': { // Signature — Bleu d'accueil
+        name: "Entrée",
+        nameKO: "입장",
+        bgColor: 0x08090f,
+        fogColor: 0x08090f,
+        hemiSky: 0xb1a5e6,      // Twinkle/halo
+        hemiGround: 0x0a0812,
+        hemiIntensity: 0.55,
+        dirColor: 0x696293,      // Base signature
+        dirIntensity: 0.45,
+        particleHue1: 0.72,      // Bleu-violet
+        particleHue2: 0.78,
+        textFR: "Bienvenue.<br/>L'espace vous attend.",
+        textKO: "환영합니다.<br/>공간이 당신을 기다립니다."
+      },
+      0: { // Aube
+        name: "Aube",
+        nameKO: "새벽",
+        bgColor: 0x0a0b12,
+        fogColor: 0x0a0b12,
+        hemiSky: 0xffeedd,
+        hemiGround: 0x0a0812,
+        hemiIntensity: 0.4,
+        dirColor: 0xffd4a8,
+        dirIntensity: 0.35,
+        particleHue1: 0.08,
+        particleHue2: 0.12,
+        textFR: "L'aube ne commence pas par le soleil.<br/>Elle commence par le silence qui l'attend.",
+        textKO: "새벽은 태양으로 시작되지 않습니다.<br/>그것을 기다리는 침묵으로 시작됩니다."
+      },
+      1: { // Jour
+        name: "Jour",
+        nameKO: "낮",
+        bgColor: 0x0c0e16,
+        fogColor: 0x0c0e16,
+        hemiSky: 0xc8e0ff,
+        hemiGround: 0x0b1020,
+        hemiIntensity: 0.6,
+        dirColor: 0xffffff,
+        dirIntensity: 0.5,
+        particleHue1: 0.55,
+        particleHue2: 0.62,
+        textFR: "La pleine lumière n'éblouit pas.<br/>Elle révèle ce qui était toujours là, attendant d'être vu.",
+        textKO: "충만한 빛은 눈부시게 하지 않습니다.<br/>항상 거기 있었던 것을, 보여지기를 기다리던 것을 드러냅니다."
+      },
+      2: { // Crépuscule
+        name: "Crépuscule",
+        nameKO: "황혼",
+        bgColor: 0x0e0910,
+        fogColor: 0x0e0910,
+        hemiSky: 0xffb088,
+        hemiGround: 0x100814,
+        hemiIntensity: 0.45,
+        dirColor: 0xff9966,
+        dirIntensity: 0.4,
+        particleHue1: 0.02,
+        particleHue2: 0.08,
+        textFR: "Le crépuscule est l'heure où le monde consent enfin<br/>à montrer ses ombres.",
+        textKO: "황혼은 세상이 마침내 그 그림자를<br/>드러내기로 동의하는 시간입니다."
+      },
+      3: { // Nuit
+        name: "Nuit",
+        nameKO: "밤",
+        bgColor: 0x050608,
+        fogColor: 0x050608,
+        hemiSky: 0x8090b0,
+        hemiGround: 0x020308,
+        hemiIntensity: 0.25,
+        dirColor: 0x6080c0,
+        dirIntensity: 0.2,
+        particleHue1: 0.65,
+        particleHue2: 0.72,
+        textFR: "La nuit n'est pas l'absence de lumière.<br/>C'est l'espace où la lumière intérieure devient visible.",
+        textKO: "밤은 빛의 부재가 아닙니다.<br/>내면의 빛이 보이게 되는 공간입니다."
+      }
+    };
+
+    // (… reste du fichier identique …)
+  </script>
+</body>
+</html>
