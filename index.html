@@ -1367,6 +1367,33 @@
     btnSound.addEventListener("click", toggleSound);
     
     // ══════════════════════════════════════════════════════════════════
+    // ══  RITUEL D'ENTRÉE — Le bleu est le lieu
+    // ══════════════════════════════════════════════════════════════════
+    
+    const blueSource = document.getElementById("blueSource");
+    const canvasEl = document.getElementById("c");
+    const entryHalo = document.getElementById("entryHalo");
+    const entryText = document.getElementById("entryText");
+
+    let entryActive = true;
+    let entryAborted = false;
+
+    function endEntrySequence() {
+      if (!entryActive) return;
+      entryActive = false;
+      if (entryHalo) entryHalo.style.opacity = "0";
+      if (entryText) entryText.style.opacity = "0";
+      presenceParticle.visible = false;
+      presenceMaterial.opacity = 0.0;
+    }
+
+    function abortEntrySequence() {
+      if (!entryActive || entryAborted) return;
+      entryAborted = true;
+      endEntrySequence();
+    }
+
+    // ══════════════════════════════════════════════════════════════════
 
     // ---------- Animation loop ----------
     const clock = new THREE.Clock();
@@ -1482,33 +1509,6 @@
       renderer.setSize(w, h, false);
     }
     window.addEventListener("resize", onResize);
-
-    // ══════════════════════════════════════════════════════════════════
-    // ══  RITUEL D'ENTRÉE — Le bleu est le lieu
-    // ══════════════════════════════════════════════════════════════════
-    
-    const blueSource = document.getElementById("blueSource");
-    const canvasEl = document.getElementById("c");
-    const entryHalo = document.getElementById("entryHalo");
-    const entryText = document.getElementById("entryText");
-
-    let entryActive = true;
-    let entryAborted = false;
-
-    function endEntrySequence() {
-      if (!entryActive) return;
-      entryActive = false;
-      if (entryHalo) entryHalo.style.opacity = "0";
-      if (entryText) entryText.style.opacity = "0";
-      presenceParticle.visible = false;
-      presenceMaterial.opacity = 0.0;
-    }
-
-    function abortEntrySequence() {
-      if (!entryActive || entryAborted) return;
-      entryAborted = true;
-      endEntrySequence();
-    }
     
     // Démarrer en mode Signature (couleurs préparées, mais invisible)
     applyMode(-1, true);
