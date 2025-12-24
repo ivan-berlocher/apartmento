@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>apartmento / L'Espace Intérieur</title>
   <meta name="description" content="Un espace de contemplation digitale — où la lumière habite l'architecture de la pensée." />
+  <meta name="theme-color" content="#04060c" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="apartmento" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
   <style>
     html, body { margin:0; padding:0; height:100%; background:linear-gradient(to bottom, #0b1020 0%, #04060c 100%); overflow:hidden; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
     #c { width:100vw; height:100vh; display:block; }
@@ -306,6 +312,11 @@
   <div class="signature">LifeOS — apartmento</div>
 
   <script type="module">
+    // Enregistrement du service worker pour l'installation comme app
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    }
+
     import * as THREE from "three";
     import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 

@@ -1,0 +1,10 @@
+{
+  "name": "apartmento / L'Espace Intérieur",
+  "short_name": "apartmento",
+  "start_url": "/apartmento/",
+  "display": "standalone",
+  "background_color": "#04060c",
+  "theme_color": "#04060c",
+  "description": "Un espace de contemplation digitale — où la lumière habite l'architecture de la pensée.",
+  "orientation": "any"
+}
