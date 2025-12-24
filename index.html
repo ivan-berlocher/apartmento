@@ -401,7 +401,1004 @@
       }
     };
 
-    // (… reste du fichier identique …)
+    // ---------- Language System ----------
+    let currentLang = "ko";
+    const langFRBtn = document.getElementById("langFR");
+    const langKOBtn = document.getElementById("langKO");
+    const textFR = document.getElementById("textFR");
+    const textKO = document.getElementById("textKO");
+
+    function setLang(lang) {
+      currentLang = lang;
+      document.querySelectorAll("[data-lang]").forEach(el => {
+        el.classList.toggle("visible", el.getAttribute("data-lang") === lang);
+      });
+      langFRBtn.classList.toggle("active", lang === "fr");
+      langKOBtn.classList.toggle("active", lang === "ko");
+      updateModeText();
+    }
+
+    function updateModeText() {
+      const cfg = MODES[mode];
+      if (currentLang === "fr") {
+        textFR.innerHTML = cfg.textFR;
+      } else {
+        textKO.innerHTML = cfg.textKO;
+      }
+    }
+
+    langFRBtn.addEventListener("click", () => setLang("fr"));
+    langKOBtn.addEventListener("click", () => setLang("ko"));
+
+    // ---------- Lighting ----------
+    const hemi = new THREE.HemisphereLight(0xffeedd, 0x0a0812, 0.4);
+    scene.add(hemi);
+
+    const dir = new THREE.DirectionalLight(0xffd4a8, 0.35);
+    dir.position.set(4.0, 5.0, 3.0);
+    scene.add(dir);
+
+    // Ambient glow
+    const ambient = new THREE.AmbientLight(0x101420, 0.15);
+    scene.add(ambient);
+
+    // ---------- Room geometry (abstract apartment) ----------
+    // Floor
+    const floorGeo = new THREE.PlaneGeometry(16, 16);
+    const floorMat = new THREE.MeshStandardMaterial({ 
+      color: 0x0a0c14, 
+      roughness: 0.92, 
+      metalness: 0.02 
+    });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = 0;
+    scene.add(floor);
+
+    // Abstract walls (thin vertical planes suggesting space)
+    const wallGroup = new THREE.Group();
+    scene.add(wallGroup);
+
+    const WALL_COUNT = 7;
+    const wallGeo = new THREE.BoxGeometry(0.03, 2.8, 4.2);
+    const walls = [];
+
+    for (let i = 0; i < WALL_COUNT; i++) {
+      const mat = new THREE.MeshPhysicalMaterial({
+        color: 0x12151f,
+        roughness: 0.4,
+        metalness: 0.08,
+        transmission: 0.35,
+        thickness: 0.8,
+        ior: 1.2,
+        transparent: true,
+        opacity: 0.18,
+        clearcoat: 0.25,
+        clearcoatRoughness: 0.3,
+      });
+      const m = new THREE.Mesh(wallGeo, mat);
+      const x = lerp(-2.8, 2.8, i / (WALL_COUNT - 1));
+      m.position.set(x, 1.4, 0);
+      m.rotation.y = Math.sin(i * 0.9) * 0.12;
+      walls.push(m);
+      wallGroup.add(m);
+    }
+
+    // Ceiling hint (very subtle)
+    const ceilingGeo = new THREE.PlaneGeometry(12, 12);
+    const ceilingMat = new THREE.MeshBasicMaterial({ 
+      color: 0x0a0c12, 
+      transparent: true, 
+      opacity: 0.3 
+    });
+    const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.y = 3.2;
+    scene.add(ceiling);
+
+    // ══════════════════════════════════════════════════════════════════
+    // ══  BULLES 3D — Billes de verre (présences, pas décor)
+    // ══════════════════════════════════════════════════════════════════
+    
+    const bubbleGroup = new THREE.Group();
+    scene.add(bubbleGroup);
+    
+    const MAX_BUBBLES = 12;
+    const bubbles = [];
+    
+    // Matériau verre — dépoli, subtil, le bleu vient de la lumière
+    const bubbleMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      roughness: 0.15,
+      metalness: 0.0,
+      transmission: 0.92,
+      thickness: 1.2,
+      ior: 1.45,
+      transparent: true,
+      opacity: 0.6,
+      clearcoat: 0.3,
+      clearcoatRoughness: 0.1,
+      envMapIntensity: 0.5,
+    });
+    
+    // Créer les bulles (toutes, mais invisibles au départ)
+    for (let i = 0; i < MAX_BUBBLES; i++) {
+      const radius = 0.15 + Math.random() * 0.35; // Tailles variées
+      const geo = new THREE.SphereGeometry(radius, 32, 32);
+      const bubble = new THREE.Mesh(geo, bubbleMaterial.clone());
+      
+      // Position initiale aléatoire dans l'espace
+      bubble.position.set(
+        (Math.random() - 0.5) * 5,
+        0.5 + Math.random() * 2.2,
+        (Math.random() - 0.5) * 5
+      );
+      
+      // Données pour l'animation
+      bubble.userData = {
+        baseY: bubble.position.y,
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.1 + Math.random() * 0.15,
+        driftX: (Math.random() - 0.5) * 0.02,
+        driftZ: (Math.random() - 0.5) * 0.02,
+      };
+      
+      bubble.visible = false; // Invisible par défaut
+      bubbles.push(bubble);
+      bubbleGroup.add(bubble);
+    }
+    
+    // Configuration des bulles par mode
+    const BUBBLE_CONFIG = {
+      '-1': { count: 2, opacity: 0.4 },   // Signature: quelques-unes, discrètes
+      0: { count: 0, opacity: 0 },         // Aube: aucune (seuil)
+      1: { count: 0, opacity: 0 },         // Jour: aucune (clarté)
+      2: { count: 3, opacity: 0.5 },       // Crépuscule: apparition timide
+      3: { count: 8, opacity: 0.65 },      // Nuit: présence claire
+    };
+    
+    let currentBubbleCount = 0;
+    let targetBubbleOpacity = 0;
+    let zenBubblesActive = false;
+    
+    function updateBubblesForMode(modeIndex) {
+      const cfg = BUBBLE_CONFIG[modeIndex] || { count: 0, opacity: 0 };
+      currentBubbleCount = cfg.count;
+      targetBubbleOpacity = cfg.opacity;
+      
+      // Si Zen actif, plus de bulles
+      if (zenBubblesActive) {
+        currentBubbleCount = Math.min(MAX_BUBBLES, 10);
+        targetBubbleOpacity = 0.7;
+      }
+      
+      // Activer/désactiver les bulles
+      bubbles.forEach((b, i) => {
+        const shouldShow = i < currentBubbleCount;
+        if (shouldShow && !b.visible) {
+          // Repositionner aléatoirement à l'apparition
+          b.position.set(
+            (Math.random() - 0.5) * 5,
+            0.5 + Math.random() * 2.2,
+            (Math.random() - 0.5) * 5
+          );
+          b.userData.baseY = b.position.y;
+        }
+        b.visible = shouldShow;
+      });
+    }
+    
+    function animateBubbles(time) {
+      bubbles.forEach((bubble, i) => {
+        if (!bubble.visible) return;
+        
+        const d = bubble.userData;
+        
+        // Mouvement très lent — quasi immobile
+        bubble.position.y = d.baseY + Math.sin(time * d.speed + d.phase) * 0.08;
+        bubble.position.x += d.driftX * 0.01;
+        bubble.position.z += d.driftZ * 0.01;
+        
+        // Contraindre dans l'espace
+        if (Math.abs(bubble.position.x) > 3) d.driftX *= -1;
+        if (Math.abs(bubble.position.z) > 3) d.driftZ *= -1;
+        
+        // Transition d'opacité douce
+        const mat = bubble.material;
+        mat.opacity = lerp(mat.opacity, targetBubbleOpacity, 0.02);
+      });
+    }
+
+    // ---------- Light particles (inhabiting the space) ----------
+    const POINTS = 12000;
+    const positions = new Float32Array(POINTS * 3);
+    const seeds = new Float32Array(POINTS * 3);
+
+    for (let i = 0; i < POINTS; i++) {
+      const ix = i * 3;
+      // Distribute in room-like volume
+      const x = (Math.random() - 0.5) * 6.0;
+      const y = 0.1 + Math.pow(Math.random(), 0.8) * 2.8;
+      const z = (Math.random() - 0.5) * 6.0;
+      
+      positions[ix + 0] = x;
+      positions[ix + 1] = y;
+      positions[ix + 2] = z;
+
+      seeds[ix + 0] = Math.random() * 10.0;
+      seeds[ix + 1] = Math.random() * 10.0;
+      seeds[ix + 2] = Math.random() * 10.0;
+    }
+
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geom.setAttribute("seed", new THREE.BufferAttribute(seeds, 3));
+
+    const uniforms = {
+      uTime: { value: 0 },
+      uMode: { value: 0 },
+      uHue1: { value: 0.08 },
+      uHue2: { value: 0.12 },
+      uBreath: { value: 0 },
+      uOpacity: { value: 1.0 },
+      uTransition: { value: 0 },
+      uVoie: { value: 0.0 }, // 0 = Multiplicité (tous visibles), 1 = Voie (seule la ligne)
+    };
+
+    const vert = /* glsl */`
+      uniform float uTime;
+      uniform float uMode;
+      uniform float uBreath;
+      uniform float uVoie;
+      attribute vec3 seed;
+
+      varying float vGlow;
+      varying float vHeight;
+      varying float vDepth;
+      varying float vVoieAlpha;
+
+      void main() {
+        vec3 p = position;
+
+        float t = uTime;
+        
+        // Organic breathing movement
+        float breath = uBreath * 0.06;
+        float n1 = sin(seed.x * 2.0 + t * 0.4) * cos(seed.y * 1.5 + t * 0.3);
+        float n2 = cos(seed.z * 1.8 + t * 0.35);
+        
+        p.x += n1 * breath;
+        p.y += sin(seed.y * 3.0 + t * 0.5) * breath * 0.7;
+        p.z += n2 * breath;
+
+        // Slow drift upward (like dust in light)
+        float drift = mod(seed.x + t * 0.02, 1.0);
+        p.y += drift * 0.15;
+
+        vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+
+        // Point size with perspective and variation
+        float size = 1.8 + 1.2 * (0.5 + 0.5 * sin(seed.x * 4.0 + t * 0.8));
+        size *= (280.0 / -mvPosition.z);
+        gl_PointSize = clamp(size, 0.8, 6.0);
+
+        vDepth = clamp((-mvPosition.z - 2.5) / 12.0, 0.0, 1.0);
+        vHeight = clamp(p.y / 3.0, 0.0, 1.0);
+        vGlow = 0.3 + 0.7 * (0.5 + 0.5 * sin(seed.z * 5.0 + t * 0.9));
+        
+        // Voie : atténuation des points hauts
+        // En Multiplicité (uVoie=0): tous visibles
+        // En Voie (uVoie=1): seuls les points bas restent (la ligne)
+        float heightFade = 1.0 - smoothstep(0.0, 0.4, p.y) * uVoie;
+        vVoieAlpha = heightFade;
+      }
+    `;
+
+    const frag = /* glsl */`
+      precision highp float;
+
+      uniform float uHue1;
+      uniform float uHue2;
+      uniform float uOpacity;
+      uniform float uTransition;
+      uniform float uVoie;
+
+      varying float vGlow;
+      varying float vHeight;
+      varying float vDepth;
+      varying float vVoieAlpha;
+
+      vec3 hsl2rgb(float h, float s, float l) {
+        float c = (1.0 - abs(2.0 * l - 1.0)) * s;
+        float x = c * (1.0 - abs(mod(h * 6.0, 2.0) - 1.0));
+        float m = l - c * 0.5;
+        vec3 rgb;
+        if (h < 0.166667) rgb = vec3(c, x, 0.0);
+        else if (h < 0.333333) rgb = vec3(x, c, 0.0);
+        else if (h < 0.5) rgb = vec3(0.0, c, x);
+        else if (h < 0.666667) rgb = vec3(0.0, x, c);
+        else if (h < 0.833333) rgb = vec3(x, 0.0, c);
+        else rgb = vec3(c, 0.0, x);
+        return rgb + m;
+      }
+
+      void main(){
+        vec2 uv = gl_PointCoord.xy * 2.0 - 1.0;
+        float r2 = dot(uv, uv);
+        float falloff = exp(-3.5 * r2);
+        float core = exp(-12.0 * r2);
+
+        // Interpolate hue based on height
+        float h = mix(uHue1, uHue2, vHeight);
+        float s = 0.45 + 0.25 * vGlow;
+        float l = 0.55 + 0.25 * vGlow;
+        
+        vec3 col = hsl2rgb(h, s, l);
+        
+        // Depth fade
+        col *= (0.7 + 0.3 * (1.0 - vDepth));
+        
+        // Glow modulation
+        col *= (0.8 + 0.4 * vGlow);
+
+        float alpha = (0.15 + 0.5 * falloff + 0.35 * core) * uOpacity;
+        
+        // En Voie: seule la ligne basse reste visible
+        alpha *= vVoieAlpha;
+        
+        // Si quasi invisible, discard
+        if (alpha < 0.01) discard;
+
+        gl_FragColor = vec4(col, alpha);
+
+        if (r2 > 1.0) discard;
+      }
+    `;
+
+    const mat = new THREE.ShaderMaterial({
+      uniforms,
+      vertexShader: vert,
+      fragmentShader: frag,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+
+    const points = new THREE.Points(geom, mat);
+    scene.add(points);
+
+    // ---------- Mode System ----------
+    let targetMode = -1;
+
+    const btnSignature = document.getElementById("btnSignature");
+    const btnA = document.getElementById("btnA");
+    const btnB = document.getElementById("btnB");
+    const btnC = document.getElementById("btnC");
+    const btnD = document.getElementById("btnD");
+    const btnFullscreen = document.getElementById("btnFullscreen");
+    const btnZen = document.getElementById("btnZen");
+    const btnCapture = document.getElementById("btnCapture");
+    
+    const pillbar = document.querySelector(".pillbar");
+    const note = document.querySelector(".note");
+    const brand = document.querySelector(".brand");
+
+    function setActivePill(which){
+      btnSignature.classList.toggle("active", which === -1);
+      [btnA, btnB, btnC, btnD].forEach((b, i) => {
+        b.classList.toggle("active", i === which);
+      });
+    }
+
+    function applyMode(next, instant = false){
+      targetMode = next;
+      if (instant) mode = next;
+      
+      const cfg = MODES[next];
+      setActivePill(next);
+      
+      // Update text based on current language
+      updateModeText();
+      
+      // Animate colors
+      const duration = instant ? 0 : 1200;
+      const start = performance.now();
+      const startBg = renderer.getClearColor(new THREE.Color());
+      const endBg = new THREE.Color(cfg.bgColor);
+      const startFog = scene.fog.color.clone();
+      const endFog = new THREE.Color(cfg.fogColor);
+      const startHemiSky = hemi.color.clone();
+      const endHemiSky = new THREE.Color(cfg.hemiSky);
+      const startHemiGround = hemi.groundColor.clone();
+      const endHemiGround = new THREE.Color(cfg.hemiGround);
+      const startDir = dir.color.clone();
+      const endDir = new THREE.Color(cfg.dirColor);
+      const startHue1 = uniforms.uHue1.value;
+      const startHue2 = uniforms.uHue2.value;
+      
+      function animateMode(){
+        const elapsed = performance.now() - start;
+        const t = instant ? 1 : smoothstep(0, duration, elapsed);
+        
+        renderer.setClearColor(startBg.clone().lerp(endBg, t));
+        scene.fog.color.copy(startFog).lerp(endFog, t);
+        hemi.color.copy(startHemiSky).lerp(endHemiSky, t);
+        hemi.groundColor.copy(startHemiGround).lerp(endHemiGround, t);
+        hemi.intensity = lerp(hemi.intensity, cfg.hemiIntensity, t * 0.1);
+        dir.color.copy(startDir).lerp(endDir, t);
+        dir.intensity = lerp(dir.intensity, cfg.dirIntensity, t * 0.1);
+        
+        uniforms.uHue1.value = lerp(startHue1, cfg.particleHue1, t);
+        uniforms.uHue2.value = lerp(startHue2, cfg.particleHue2, t);
+        
+        // Update wall materials
+        for (const wall of walls) {
+          const m = wall.material;
+          m.opacity = lerp(m.opacity, 0.15 + (next === 3 ? 0.08 : 0.05), t * 0.05);
+        }
+        
+        if (t < 1) requestAnimationFrame(animateMode);
+        else mode = next;
+      }
+      animateMode();
+      
+      // Synchroniser le son avec le mode
+      updateSoundForMode(next);
+      
+      // Synchroniser les bulles avec le mode
+      updateBubblesForMode(next);
+      
+      // Influence du mode sur le regard
+      // Nuit suggère doucement la Voie (sans forcer)
+      // Ce n'est qu'une invitation, pas une contrainte
+      if (next === 3 && regard === "multiplicite") {
+        // Suggestion légère: on ne bascule pas, mais on attenue un peu
+        // La voie commence à se dessiner dans la nuit
+        // (L'utilisateur doit choisir activement d'y aller)
+      }
+    }
+
+    btnSignature.addEventListener("click", () => applyMode(-1));
+    btnA.addEventListener("click", () => applyMode(0));
+    btnB.addEventListener("click", () => applyMode(1));
+    btnC.addEventListener("click", () => applyMode(2));
+    btnD.addEventListener("click", () => applyMode(3));
+
+    // ---------- Toast ----------
+    const toastEl = document.getElementById("toast");
+    let toastTimer = null;
+    function toast(msg){
+      toastEl.textContent = msg;
+      toastEl.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1400);
+    }
+
+    // ---------- Capture ----------
+    function capture(){
+      renderer.render(scene, camera);
+      const url = canvas.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.href = url;
+      const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+      const modeName = MODES[mode].name.toLowerCase();
+      a.download = `apartmento_${modeName}_${stamp}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast("Capturé");
+    }
+    btnCapture.addEventListener("click", capture);
+
+    // ---------- Fullscreen / Zen ----------
+    async function enterFullscreen(){
+      try {
+        if (!document.fullscreenElement){
+          await document.documentElement.requestFullscreen({ navigationUI: "hide" });
+          toast("Plein écran");
+        } else {
+          await document.exitFullscreen();
+          toast("Fenêtré");
+        }
+      } catch (err){
+        toast("Plein écran non disponible");
+      }
+    }
+    function toggleZen(){
+      document.body.classList.toggle("zen");
+      const isZen = document.body.classList.contains("zen");
+      toast(isZen ? "Mode Zen" : "Interface visible");
+      
+      // En Zen: bulles pleines, lentes, presque sacrées
+      zenBubblesActive = isZen;
+      updateBubblesForMode(mode);
+      
+      // En Zen, passer en Voie (le chemin se révèle)
+      if (isZen && regard === "multiplicite") {
+        setRegard("voie");
+      }
+    }
+    
+    // ══════════════════════════════════════════════════════════════════
+    // ══  REGARD : Multiplicité ↔ Voie
+    // ══════════════════════════════════════════════════════════════════
+    // D'en haut, il y a mille chemins.
+    // À hauteur d'homme, il n'y en a qu'un.
+    //
+    // Ce n'est PAS une rotation de caméra.
+    // C'est le même espace qui change de sens selon le point de vue existentiel.
+    //
+    // Multiplicité : le possible, le vertige, l'indécision
+    // Voie : le vécu, le choix, la responsabilité
+    // ══════════════════════════════════════════════════════════════════
+    
+    let regard = "multiplicite"; // "multiplicite" | "voie"
+    const btnPosture = document.getElementById("btnPosture");
+    const postureIcon = document.getElementById("postureIcon");
+    
+    // Configuration du regard
+    const REGARD_CONFIG = {
+      multiplicite: {
+        // Vue haute/oblique : myriade de points, densité, possibles
+        cameraPos: { x: 0.1, y: 4.5, z: 5.5 },
+        targetPos: { x: 0, y: 0.5, z: 0 },
+        voie: 0.0,  // Tous les points visibles
+        icon: "◇",  // Diamant = multiplicité, richesse
+        label: { fr: "Multiplicité", kr: "다양성" }
+      },
+      voie: {
+        // Vue rasante : la ligne, le chemin, la trace
+        cameraPos: { x: 0, y: 0.15, z: 9.5 },
+        targetPos: { x: 0, y: 0.1, z: -5 },
+        voie: 1.0,  // Seule la ligne basse visible
+        icon: "─",  // Ligne horizontale = voie unique
+        label: { fr: "Voie", kr: "길" }
+      }
+    };
+    
+    let targetVoie = 0.0;
+    
+    function setRegard(newRegard, instant = false) {
+      regard = newRegard;
+      const cfg = REGARD_CONFIG[regard];
+      postureIcon.textContent = cfg.icon;
+      btnPosture.classList.toggle("active", regard === "voie");
+      targetVoie = cfg.voie;
+      
+      if (instant) {
+        camera.position.set(cfg.cameraPos.x, cfg.cameraPos.y, cfg.cameraPos.z);
+        controls.target.set(cfg.targetPos.x, cfg.targetPos.y, cfg.targetPos.z);
+        uniforms.uVoie.value = cfg.voie;
+        controls.update();
+      } else {
+        // Transition lente, presque imperceptible
+        // La bascule existentielle ne se fait pas brusquement
+        const duration = 3500; // 3.5 secondes
+        const start = performance.now();
+        const startPos = camera.position.clone();
+        const startTarget = controls.target.clone();
+        const startVoie = uniforms.uVoie.value;
+        const endPos = new THREE.Vector3(cfg.cameraPos.x, cfg.cameraPos.y, cfg.cameraPos.z);
+        const endTarget = new THREE.Vector3(cfg.targetPos.x, cfg.targetPos.y, cfg.targetPos.z);
+        
+        function animateRegard() {
+          const elapsed = performance.now() - start;
+          const t = smoothstep(0, duration, elapsed);
+          
+          camera.position.lerpVectors(startPos, endPos, t);
+          controls.target.lerpVectors(startTarget, endTarget, t);
+          
+          // Transition de l'atténuation verticale
+          uniforms.uVoie.value = lerp(startVoie, cfg.voie, t);
+          
+          controls.update();
+          
+          if (t < 1) requestAnimationFrame(animateRegard);
+        }
+        animateRegard();
+      }
+    }
+    
+    function toggleRegard() {
+      const newRegard = regard === "multiplicite" ? "voie" : "multiplicite";
+      setRegard(newRegard);
+      const label = REGARD_CONFIG[newRegard].label;
+      toast(lang === "fr" ? label.fr : label.kr);
+    }
+    
+    btnPosture.addEventListener("click", toggleRegard);
+    btnFullscreen.addEventListener("click", () => { enableOrientation(); enterFullscreen(); });
+    btnZen.addEventListener("click", toggleZen);
+
+    document.addEventListener("fullscreenchange", () => {
+      const on = !!document.fullscreenElement;
+      if (on) document.body.classList.add("zen");
+      else document.body.classList.remove("zen");
+    });
+
+    // ---------- Idle cursor behavior ----------
+    let idleTimer = null;
+    function markActive(){
+      document.body.classList.remove("cursor-hide");
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        document.body.classList.add("cursor-hide");
+      }, 2200);
+    }
+    window.addEventListener("mousemove", markActive, { passive:true });
+    window.addEventListener("mousedown", markActive, { passive:true });
+    window.addEventListener("touchstart", markActive, { passive:true });
+    markActive();
+
+    // ---------- Keyboard shortcuts ----------
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "0") applyMode(-1);
+      if (e.key === "1") applyMode(0);
+      if (e.key === "2") applyMode(1);
+      if (e.key === "3") applyMode(2);
+      if (e.key === "4") applyMode(3);
+      if (e.key.toLowerCase() === "s") toggleSound();
+      if (e.key.toLowerCase() === "v" || e.key.toLowerCase() === "m") toggleRegard();
+      if (e.key.toLowerCase() === "f") enterFullscreen();
+      if (e.key.toLowerCase() === "z") toggleZen();
+      if (e.key.toLowerCase() === "p") capture();
+    });
+
+    canvas.addEventListener("dblclick", () => {
+      // Double-clic : revenir à la Multiplicité
+      setRegard("multiplicite");
+      toast(lang === "fr" ? "Multiplicité" : "다양성");
+    });
+
+    // ══════════════════════════════════════════════════════════════════
+    // ══  SYSTÈME SONORE GÉNÉRATIF — 3 COUCHES
+    // ══════════════════════════════════════════════════════════════════
+    
+    let audioCtx = null;
+    let soundEnabled = false;
+    let masterGain = null;
+    
+    // Couche 1: Drone (respiration sonore)
+    let droneOsc1 = null;
+    let droneOsc2 = null;
+    let droneGain = null;
+    let droneFilter = null;
+    
+    // Couche 2: Notes éparses (poésie)
+    let noteGain = null;
+    let lastNoteTime = 0;
+    let noteInterval = 12000; // 8-15 secondes
+    
+    // Couche 3: Modulation vivante
+    let lfoOsc = null;
+    let lfoGain = null;
+    
+    const btnSound = document.getElementById("btnSound");
+    const soundIcon = document.getElementById("soundIcon");
+    
+    // Configuration sonore par mode
+    const SOUND_CONFIG = {
+      '-1': { // Signature
+        droneFreq: 92,
+        droneDetune: 4,
+        filterFreq: 450,
+        droneVol: 0.07,
+        noteProb: 0.15,
+        noteFreqs: [494, 587, 740], // B4, D5, F#5 — bleuâtre
+        lfoSpeed: 0.07,
+        warmth: 0.25
+      },
+      0: { // Aube
+        droneFreq: 82,      // très bas, presque absent
+        droneDetune: 3,
+        filterFreq: 400,
+        droneVol: 0.06,
+        noteProb: 0.4,      // notes fréquentes
+        noteFreqs: [523, 659, 784, 880], // C5, E5, G5, A5 — clair
+        lfoSpeed: 0.08,
+        warmth: 0.2
+      },
+      1: { // Jour
+        droneFreq: 110,
+        droneDetune: 5,
+        filterFreq: 600,
+        droneVol: 0.08,
+        noteProb: 0.25,     // parcimonieux
+        noteFreqs: [392, 494, 587, 698], // G4, B4, D5, F5
+        lfoSpeed: 0.1,
+        warmth: 0.3
+      },
+      2: { // Crépuscule
+        droneFreq: 73,      // plus chaud
+        droneDetune: 8,
+        filterFreq: 350,
+        droneVol: 0.1,
+        noteProb: 0.08,     // très rare
+        noteFreqs: [349, 440, 523], // F4, A4, C5 — doré
+        lfoSpeed: 0.06,
+        warmth: 0.5
+      },
+      3: { // Nuit
+        droneFreq: 55,      // grave, enveloppant
+        droneDetune: 12,
+        filterFreq: 250,
+        droneVol: 0.12,
+        noteProb: 0,        // pas de notes
+        noteFreqs: [],
+        lfoSpeed: 0.03,
+        warmth: 0.7
+      }
+    };
+    
+    function initAudio() {
+      if (audioCtx) return;
+      
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      
+      // Master gain avec fade-in
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = 0;
+      masterGain.connect(audioCtx.destination);
+      
+      // ─── Couche 1: Drone ───
+      droneGain = audioCtx.createGain();
+      droneGain.gain.value = 0.08;
+      
+      droneFilter = audioCtx.createBiquadFilter();
+      droneFilter.type = "lowpass";
+      droneFilter.frequency.value = 400;
+      droneFilter.Q.value = 1;
+      
+      // Oscillateur 1 (fondamentale)
+      droneOsc1 = audioCtx.createOscillator();
+      droneOsc1.type = "sine";
+      droneOsc1.frequency.value = 82;
+      
+      // Oscillateur 2 (harmonique désaccordée pour chaleur)
+      droneOsc2 = audioCtx.createOscillator();
+      droneOsc2.type = "sine";
+      droneOsc2.frequency.value = 82 * 1.002; // légèrement désaccordé
+      
+      droneOsc1.connect(droneFilter);
+      droneOsc2.connect(droneFilter);
+      droneFilter.connect(droneGain);
+      droneGain.connect(masterGain);
+      
+      droneOsc1.start();
+      droneOsc2.start();
+      
+      // ─── Couche 2: Notes ───
+      noteGain = audioCtx.createGain();
+      noteGain.gain.value = 0;
+      noteGain.connect(masterGain);
+      
+      // ─── Couche 3: LFO pour modulation vivante ───
+      lfoOsc = audioCtx.createOscillator();
+      lfoOsc.type = "sine";
+      lfoOsc.frequency.value = 0.08; // très lent
+      
+      lfoGain = audioCtx.createGain();
+      lfoGain.gain.value = 5; // amplitude de modulation du filtre
+      
+      lfoOsc.connect(lfoGain);
+      lfoGain.connect(droneFilter.frequency);
+      lfoOsc.start();
+    }
+    
+    function toggleSound() {
+      if (!audioCtx) initAudio();
+      
+      soundEnabled = !soundEnabled;
+      soundIcon.textContent = soundEnabled ? "🔊" : "🔇";
+      btnSound.classList.toggle("active", soundEnabled);
+      
+      const now = audioCtx.currentTime;
+      
+      if (soundEnabled) {
+        if (audioCtx.state === "suspended") audioCtx.resume();
+        // Fade-in doux (5 secondes)
+        masterGain.gain.cancelScheduledValues(now);
+        masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+        masterGain.gain.linearRampToValueAtTime(1.0, now + 5);
+      } else {
+        // Fade-out (3 secondes)
+        masterGain.gain.cancelScheduledValues(now);
+        masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+        masterGain.gain.linearRampToValueAtTime(0, now + 3);
+      }
+    }
+    
+    function updateSoundForMode(modeIndex) {
+      if (!audioCtx || !soundEnabled) return;
+      
+      const cfg = SOUND_CONFIG[modeIndex];
+      const now = audioCtx.currentTime;
+      const crossfade = 3; // 3 secondes de transition
+      
+      // Couche 1: Drone
+      droneOsc1.frequency.cancelScheduledValues(now);
+      droneOsc1.frequency.setValueAtTime(droneOsc1.frequency.value, now);
+      droneOsc1.frequency.linearRampToValueAtTime(cfg.droneFreq, now + crossfade);
+      
+      droneOsc2.frequency.cancelScheduledValues(now);
+      droneOsc2.frequency.setValueAtTime(droneOsc2.frequency.value, now);
+      droneOsc2.frequency.linearRampToValueAtTime(cfg.droneFreq * (1 + cfg.droneDetune * 0.001), now + crossfade);
+      
+      droneFilter.frequency.cancelScheduledValues(now);
+      droneFilter.frequency.setValueAtTime(droneFilter.frequency.value, now);
+      droneFilter.frequency.linearRampToValueAtTime(cfg.filterFreq, now + crossfade);
+      
+      droneGain.gain.cancelScheduledValues(now);
+      droneGain.gain.setValueAtTime(droneGain.gain.value, now);
+      droneGain.gain.linearRampToValueAtTime(cfg.droneVol, now + crossfade);
+      
+      // Couche 3: LFO
+      lfoOsc.frequency.cancelScheduledValues(now);
+      lfoOsc.frequency.setValueAtTime(lfoOsc.frequency.value, now);
+      lfoOsc.frequency.linearRampToValueAtTime(cfg.lfoSpeed, now + crossfade);
+      
+      lfoGain.gain.cancelScheduledValues(now);
+      lfoGain.gain.setValueAtTime(lfoGain.gain.value, now);
+      lfoGain.gain.linearRampToValueAtTime(cfg.filterFreq * 0.15, now + crossfade);
+    }
+    
+    function playNote() {
+      if (!audioCtx || !soundEnabled) return;
+      
+      const cfg = SOUND_CONFIG[mode];
+      if (cfg.noteProb === 0 || cfg.noteFreqs.length === 0) return;
+      if (Math.random() > cfg.noteProb) return;
+      
+      const now = audioCtx.currentTime;
+      const freq = cfg.noteFreqs[Math.floor(Math.random() * cfg.noteFreqs.length)];
+      
+      // Créer une note éphémère
+      const osc = audioCtx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      
+      const gain = audioCtx.createGain();
+      gain.gain.value = 0;
+      
+      // Reverb simulée avec delay
+      const delay = audioCtx.createDelay();
+      delay.delayTime.value = 0.3;
+      const delayGain = audioCtx.createGain();
+      delayGain.gain.value = 0.3;
+      
+      osc.connect(gain);
+      gain.connect(masterGain);
+      gain.connect(delay);
+      delay.connect(delayGain);
+      delayGain.connect(masterGain);
+      
+      // Enveloppe douce (attaque lente, decay longue)
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.04, now + 0.8);  // attaque 800ms
+      gain.gain.linearRampToValueAtTime(0.02, now + 2.5);  // sustain
+      gain.gain.linearRampToValueAtTime(0, now + 6);       // release 6s
+      
+      osc.start(now);
+      osc.stop(now + 7);
+    }
+    
+    function updateSound(time) {
+      if (!audioCtx || !soundEnabled) return;
+      
+      // Couche 2: Notes éparses
+      const now = Date.now();
+      if (now - lastNoteTime > noteInterval) {
+        playNote();
+        lastNoteTime = now;
+        // Prochain intervalle: 8-15 secondes
+        noteInterval = 8000 + Math.random() * 7000;
+      }
+      
+      // Couche 3: Modulation vivante basée sur le temps
+      if (lfoGain) {
+        // Micro-variation de l'amplitude LFO basée sur la respiration visuelle
+        const breathMod = 0.8 + 0.4 * Math.sin(time * 0.6);
+        lfoGain.gain.value = SOUND_CONFIG[mode].filterFreq * 0.15 * breathMod;
+      }
+    }
+    
+    btnSound.addEventListener("click", toggleSound);
+    
+    // ══════════════════════════════════════════════════════════════════
+
+    // ---------- Animation loop ----------
+    const clock = new THREE.Clock();
+    let t = 0;
+
+    function animate(){
+      requestAnimationFrame(animate);
+      const dt = clock.getDelta();
+      t += dt;
+      uniforms.uTime.value = t;
+
+      // Breathing
+      uniforms.uBreath.value = 0.5 + 0.5 * Math.sin(t * 0.6);
+
+      // Mobile parallax
+      if (orientEnabled){
+        const px = orientX * 0.15;
+        const py = orientY * 0.1;
+        controls.target.x = lerp(controls.target.x, px, 0.03);
+        controls.target.y = lerp(controls.target.y, 0.7 + py, 0.03);
+      }
+
+      // Gentle wall animation
+      for (let i = 0; i < walls.length; i++){
+        const w = walls[i];
+        const k = i / (walls.length - 1);
+        w.rotation.y = Math.sin(t * 0.15 + k * 3.0) * 0.08;
+        w.position.x = lerp(-2.8, 2.8, k) + Math.sin(t * 0.12 + k * 2.5) * 0.04;
+      }
+
+      // Camera micro-drift
+      const drift = 0.012;
+      camera.position.x += Math.sin(t * 0.14) * drift * dt;
+      camera.position.y += Math.cos(t * 0.11) * drift * dt;
+
+      // Update son génératif
+      updateSound(t);
+
+      // Animation bulles de verre (quasi-immobile)
+      animateBubbles(t);
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // ---------- Resize ----------
+    function onResize(){
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h, false);
+    }
+    window.addEventListener("resize", onResize);
+
+    // ══════════════════════════════════════════════════════════════════
+    // ══  RITUEL D'ENTRÉE — Le bleu est le lieu
+    // ══════════════════════════════════════════════════════════════════
+    
+    const blueSource = document.getElementById("blueSource");
+    const canvasEl = document.getElementById("c");
+    
+    // Démarrer en mode Signature (couleurs préparées, mais invisible)
+    applyMode(-1, true);
+    
+    // Phase 1: La nappe bleue apparaît (0 → 2s)
+    // "Ah. C'est ce bleu-là."
+    setTimeout(() => {
+      blueSource.classList.add("revealed");
+    }, 100);
+    
+    // Phase 2: Les particules émergent (2.5s)
+    // L'espace devient vivant
+    setTimeout(() => {
+      canvasEl.classList.add("revealed");
+    }, 2500);
+    
+    // Phase 3: Le titre se révèle (4s)
+    setTimeout(() => {
+      brand.classList.add("revealed");
+    }, 4000);
+    
+    // Phase 4: Les contrôles apparaissent (6s)
+    // "Je peux explorer"
+    setTimeout(() => {
+      pillbar.classList.add("revealed");
+    }, 6000);
+    
+    // Phase 5: La note (8s)
+    setTimeout(() => {
+      note.classList.add("revealed");
+    }, 8000);
   </script>
 </body>
 </html>
