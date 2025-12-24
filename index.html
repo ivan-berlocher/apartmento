@@ -704,6 +704,16 @@
       uOpacity: { value: 1.0 },
       uTransition: { value: 0 },
       uVoie: { value: 0.0 }, // 0 = Multiplicité (tous visibles), 1 = Voie (seule la ligne)
+      // Zones de seuils autour de certains volumes (états intérieurs)
+      uSeuilCenters: { value: [
+        new THREE.Vector3(-1.4, 1.0, -0.7),  // densité + léger ralentissement
+        new THREE.Vector3(0.0,  1.0,  0.3),  // surtout ralentissement (temps épaissi)
+        new THREE.Vector3(1.6,  1.1,  0.8),  // légère dérive chromatique
+      ]},
+      uSeuilRadius:  { value: [1.2, 1.0, 1.0] },
+      uSeuilDensity: { value: [0.35, 0.0, 0.25] },
+      uSeuilSlow:    { value: [0.25, 0.45, 0.0] },
+      uSeuilHueShift:{ value: [0.012, 0.0, -0.015] },
     };
 
     const vert = /* glsl */`
@@ -711,20 +721,42 @@
       uniform float uMode;
       uniform float uBreath;
       uniform float uVoie;
+      uniform vec3  uSeuilCenters[3];
+      uniform float uSeuilRadius[3];
+      uniform float uSeuilDensity[3];
+      uniform float uSeuilSlow[3];
+      uniform float uSeuilHueShift[3];
       attribute vec3 seed;
 
       varying float vGlow;
       varying float vHeight;
       varying float vDepth;
       varying float vVoieAlpha;
+      varying float vDensityBoost;
+      varying float vHueShift;
 
       void main() {
         vec3 p = position;
 
-        float t = uTime;
+        // Champs de seuil subtils autour de certains volumes
+        vDensityBoost = 0.0;
+        vHueShift = 0.0;
+        float slowAccum = 0.0;
+        for (int i = 0; i < 3; i++) {
+          vec3 c = uSeuilCenters[i];
+          float r = uSeuilRadius[i];
+          float d = length(p - c);
+          float k = 1.0 - smoothstep(r, r * 0.4, d); // 0 dehors, 1 au coeur
+          vDensityBoost += uSeuilDensity[i] * k;
+          vHueShift += uSeuilHueShift[i] * k;
+          slowAccum += uSeuilSlow[i] * k;
+        }
+        float motionFactor = 1.0 - clamp(slowAccum, 0.0, 0.6);
+
+        float t = uTime * motionFactor;
         
-        // Organic breathing movement
-        float breath = uBreath * 0.06;
+        // Organic breathing movement (ralentie dans les seuils)
+        float breath = uBreath * 0.06 * motionFactor;
         float n1 = sin(seed.x * 2.0 + t * 0.4) * cos(seed.y * 1.5 + t * 0.3);
         float n2 = cos(seed.z * 1.8 + t * 0.35);
         
@@ -771,6 +803,8 @@
       varying float vHeight;
       varying float vDepth;
       varying float vVoieAlpha;
+      varying float vDensityBoost;
+      varying float vHueShift;
 
       vec3 hsl2rgb(float h, float s, float l) {
         float c = (1.0 - abs(2.0 * l - 1.0)) * s;
@@ -792,8 +826,9 @@
         float falloff = exp(-3.5 * r2);
         float core = exp(-12.0 * r2);
 
-        // Interpolate hue based on height
-        float h = mix(uHue1, uHue2, vHeight);
+        // Interpolate hue based on height + très léger glissement de seuil
+        float h = mix(uHue1, uHue2, vHeight) + vHueShift;
+        h = clamp(h, 0.0, 1.0);
         float s = 0.45 + 0.25 * vGlow;
         float l = 0.55 + 0.25 * vGlow;
         
@@ -806,6 +841,8 @@
         col *= (0.8 + 0.4 * vGlow);
 
         float alpha = (0.15 + 0.5 * falloff + 0.35 * core) * uOpacity;
+        // Légère augmentation locale de "densité" lumineuse dans les seuils
+        alpha *= (1.0 + clamp(vDensityBoost, 0.0, 0.5));
         
         // En Voie: seule la ligne basse reste visible
         alpha *= vVoieAlpha;
